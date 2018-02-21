@@ -45,12 +45,14 @@ def get_min_turn_ang(s,t,a,it):
   check if there is a particle with angle ang with lost turn number <it
   if true: lost turn number and amplitude of the last stable particle is saved = particle "before" the particle with the smallest amplitude with nturns<it
   if false: the smallest lost turn number and the largest amplitude is saved
+  PH: experimental 
   """
   # s,t,a are ordered by angle,amplitude
   angles,sigmas=t.shape# angles = number of angles, sigmas = number of amplitudes
   ftype=[('angle',float),('sigma',float),('sturn',float)]
   mta=np.zeros(angles,dtype=ftype)
   # enumerate(a[:,0]) returns (0, a[0]), (1, a[1]), (2, a[2]), ... = iang, ang where iang = index of the array (0,1,2,...) for ang = angle (e.g. [1.5, ... , 1.5] , [3.0, ... ,3.0])
+  tmax = np.max(t)                          # maximum turn number 
   for iang,ang in enumerate(a[:,0]):
     tang = t[iang]
     sang = s[iang]
@@ -58,7 +60,21 @@ def get_min_turn_ang(s,t,a,it):
     if(any(tang[iturn])):
       sangit=sang[iturn].min()
       argminit=sang.searchsorted(sangit) # get index of smallest amplitude with sturn<it - amplitudes are ordered ascending
-      mta[iang]=(ang,sang[argminit-1],tang[argminit-1])#last stable amplitude -> index argminit-1
+      # check if s>stmax and assign stmin,tmax otherwise
+      # last data point i for which sigma_j-1 = sigma_j = tmax for all j<=i
+      try:
+        index_stmin = np.argwhere(t[iang]<tmax)[0][0]-1
+        stmin = s[iang][index_stmin]
+        # last data point i for which sigma_j+1 = sigma_j < tmax for all j>i
+        index_stmax = np.argwhere(t[iang]==tmax)[-1]
+        stmax = s[iang][index_stmax][0]
+      except IndexError:
+        mta[iang]=(ang,sang.max(),tang.min())
+        continue
+      if sangit>stmax:
+        mta[iang]=(ang,sang[argminit-1],tang[argminit-1])#last stable amplitude -> index argminit-1
+      else:
+        mta[iang]=(ang, stmin, tmax)
     else:
       mta[iang]=(ang,sang.max(),tang.min())
   return mta
@@ -115,7 +131,7 @@ def mk_da_vst(data,seed,tune,turnsl,turnstep):
   ajsimp_s=np.array([55/24.,-1/6.,11/8.])#Simpson rule
   ajsimp_e=np.array([11/8.,-1/6.,55/24.])
   warnsimp=True
-  for it in np.arange(turnstep,tmax,turnstep):
+  for it in np.arange(turnstep,tmax+turnstep,turnstep):
     mta=get_min_turn_ang(s,t,a,it)
     mta_angle=mta['angle']*np.pi/180#convert to rad
     l_mta_angle=len(mta_angle)
@@ -163,11 +179,14 @@ def mk_da_vst(data,seed,tune,turnsl,turnstep):
     else:
       (dawsimp,dassimp,dawsimperr,dassimperr)=np.zeros(4)
     tlossmin=np.min(mta['sturn'])
-    if(dawtrap!=currentdawtrap and it-turnstep >= 0 and tlossmin!=currenttlossmin):
-      daout[dacount]=(seed,tunex,tuney,turnsl,dawtrap,dastrap,dawsimp,dassimp,dawtraperr,dastraperr,dastraperrep,dastraperrepang,dastraperrepamp,dawsimperr,dassimperr,it-turnstep,tlossmin,mtime)
+#    tlossavg=np.average(mta[mta['sturn']<tmax]['sturn'])
+    if(dawtrap!=currentdawtrap and it-turnstep >= 0 and tlossmin!=currenttlossmin or it==tmax):
+      daout[dacount]=(seed,tunex,tuney,turnsl,dawtrap,dastrap,dawsimp,dassimp,dawtraperr,dastraperr,dastraperrep,dastraperrepang,dastraperrepamp,dawsimperr,dassimperr,it-turnstep,tlossmin,mtime)  
       dacount=dacount+1
     currentdawtrap =dawtrap
     currenttlossmin=tlossmin
+    
+  daout[dacount]=(seed,tunex,tuney,turnsl,dawtrap,dastrap,dawsimp,dassimp,dawtraperr,dastraperr,dastraperrep,dastraperrepang,dastraperrepamp,dawsimperr,dassimperr,tmax,tmax,mtime)    
   return daout[daout['dawtrap']>0]#delete 0 from errors
 
 # ----------- functions to calculat the fit -----------
