@@ -101,7 +101,10 @@ def mk_da_vst(data,seed,tune,turnsl,turnstep):
   angmax=len(a[:,0])#number of angles
   angstep=np.pi/(2*(angmax+1))#step in angle in rad
   ampstep=np.abs((s[s>0][1])-(s[s>0][0]))
-  ftype=[('seed',int),('tunex',float),('tuney',float),('turn_max',int),('dawtrap',float),('dastrap',float),('dawsimp',float),('dassimp',float),('dawtraperr',float),('dastraperr',float),('dastraperrep',float),('dastraperrepang',float),('dastraperrepamp',float),('dawsimperr',float),('dassimperr',float),('nturn',float),('tlossmin',float),('mtime',float)]
+  ftype=[('seed',int),('tunex',float),('tuney',float),('turn_max',int),('dawtrap',float),('dastrap',float),
+    ('dawsimp',float),('dassimp',float),('dawtraperr',float),('dastraperr',float),('dastraperrep',float),
+    ('dastraperrepang',float),('dastraperrepamp',float),('dawsimperr',float),('dassimperr',float),('meanda', float),
+    ('meandaerr', float), ('nturn',float),('tlossmin',float),('nturnavg',float),('mtime',float)]
   l_turnstep=len(np.arange(turnstep,tmax,turnstep))
   daout=np.ndarray(l_turnstep,dtype=ftype)
   for nm in daout.dtype.names:
@@ -115,7 +118,7 @@ def mk_da_vst(data,seed,tune,turnsl,turnstep):
   ajsimp_s=np.array([55/24.,-1/6.,11/8.])#Simpson rule
   ajsimp_e=np.array([11/8.,-1/6.,55/24.])
   warnsimp=True
-  for it in np.arange(turnstep,tmax,turnstep):
+  for it in np.arange(turnstep,tmax+turnstep,turnstep):
     mta=get_min_turn_ang(s,t,a,it)
     mta_angle=mta['angle']*np.pi/180#convert to rad
     l_mta_angle=len(mta_angle)
@@ -149,6 +152,9 @@ def mk_da_vst(data,seed,tune,turnsl,turnstep):
     dastraperrepang = ((np.abs(np.diff(mta_sigma))).sum())/(2*(angmax+1))
     dastraperrepamp = ampstep/2
     dastraperrep    = np.sqrt(dastraperrepang**2+dastraperrepamp**2)
+    # rms of the dynamic aperture
+    rmsda           = np.mean( mta_sigma )
+    rmsdaerr        = np.std(mta_sigma)
     # ---- simpson rule (simp)
     if(calcsimp):
       # int
@@ -163,8 +169,10 @@ def mk_da_vst(data,seed,tune,turnsl,turnstep):
     else:
       (dawsimp,dassimp,dawsimperr,dassimperr)=np.zeros(4)
     tlossmin=np.min(mta['sturn'])
-    if(dawtrap!=currentdawtrap and it-turnstep >= 0 and tlossmin!=currenttlossmin):
-      daout[dacount]=(seed,tunex,tuney,turnsl,dawtrap,dastrap,dawsimp,dassimp,dawtraperr,dastraperr,dastraperrep,dastraperrepang,dastraperrepamp,dawsimperr,dassimperr,it-turnstep,tlossmin,mtime)
+    nturnavg = (it-turnstep + tlossmin)/2.
+    if (dawtrap!=currentdawtrap and it-turnstep >= 0 and tlossmin!=currenttlossmin) or (it==tmax):
+      daout[dacount]=(seed,tunex,tuney,turnsl,dawtrap,dastrap,dawsimp,dassimp,dawtraperr,dastraperr,dastraperrep,
+         dastraperrepang,dastraperrepamp,dawsimperr,dassimperr, rmsda, rmsdaerr, it-turnstep, tlossmin, nturnavg, mtime)
       dacount=dacount+1
     currentdawtrap =dawtrap
     currenttlossmin=tlossmin
@@ -298,7 +306,7 @@ def plot_surv_2d_comp(db,dbcomp,lbl,complbl,seed,tune,ampmax):
   plot_surv_2d_stab(dbcomp,complbl,2,'r',seed,tune,ampmax)
   pl.legend(loc='best')
 def plot_comp_da_vst(db,dbcomp,ldat,ldaterr,lblname,complblname,seed,tune,ampmin,ampmax,tmax,slog,sfit,fitndrop):
-  """plot dynamic aperture vs number of turns, 
+  """plot dynamic aperture vs number of turns,
   blue/green=simple average, red/orange=weighted average"""
   pl.close('all')
   pl.figure(figsize=(6,6))
